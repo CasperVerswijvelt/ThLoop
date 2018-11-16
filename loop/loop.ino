@@ -48,12 +48,12 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 50;
+int batteryPercentage = 40;
 int timeNeededForStartingUpChargingCircle;
 int amoutOfLEDsToTurnOn;
 
 //Configuration
-int chargingCircleSnakeLength = 55;
+int chargingCircleSnakeLength = 10;
 int blackOutTime = 1000;
 int timePerChargingLED = 100;
 
@@ -174,7 +174,7 @@ void timerRed()
     //Serial.println("charging startup");
     float percentage = (currentTime - showBatteryActivatedTime) % timePerChargingLED / (float)timePerChargingLED;
     float adjustedBrightness = percentage * brightness;
-    int currentLedToTurnOn = (currentTime - showBatteryActivatedTime) / timePerChargingLED - 1;
+    int currentLedToTurnOn = (currentTime - showBatteryActivatedTime) / timePerChargingLED;
     leds[currentLedToTurnOn] = CHSV(0 - map(currentLedToTurnOn, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
   }
   else
@@ -182,15 +182,17 @@ void timerRed()
 
     if (random(0, 1000) > 994)
     {
-      
-      int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
-      Serial.print("Battery percentage increased to ");
-      Serial.println(batteryPercentage);
-      batteryPercentage++;
-      int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
-      if (ledIndex != ledIndexAfter)
+      if (batteryPercentage != 100)
       {
-        batteryIncreasedTime = currentTime;
+        int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
+        batteryPercentage++;
+        /*Serial.print("Battery percentage increased to ");
+        Serial.println(batteryPercentage);*/
+        int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
+        if (ledIndex != ledIndexAfter)
+        {
+          batteryIncreasedTime = currentTime;
+        }
       }
     }
 
@@ -198,7 +200,8 @@ void timerRed()
     float timeDifference = (currentTime - batteryIncreasedTime);
     float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
 
-    for(int i = 0; i<index; i++) {
+    for (int i = 0; i < index; i++)
+    {
       leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
     }
     leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
@@ -244,14 +247,15 @@ void setCurrentMode(ShowMode mode)
       amoutOfLEDsToTurnOn = (float)batteryPercentage / 100 * NUM_LEDS + 1;
       timeNeededForStartingUpChargingCircle = amoutOfLEDsToTurnOn * timePerChargingLED;
       showBatteryActivatedTime = currentTime;
-
+      /*Serial.println("--- Showing battery startup information ---");
       Serial.print("Battery percentage: ");
       Serial.println(batteryPercentage);
       Serial.print("Amount of leds to turn on: ");
       Serial.println(amoutOfLEDsToTurnOn);
       Serial.print("Time needed to turn these leds on: ");
       Serial.println(timeNeededForStartingUpChargingCircle);
-      delay(100);
+      Serial.println("-------------------------------------------");
+      delay(100);*/
       break;
     }
     case BLACKING_OUT:
