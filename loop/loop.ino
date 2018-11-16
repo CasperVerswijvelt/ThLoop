@@ -31,7 +31,6 @@ int previousButtonState; // the previous reading from the input pin
 //LED information
 const int ledPin = 13;
 
-
 //Used to store currentTime
 long currentTime;
 //Used to store currentTime, after an interval
@@ -40,6 +39,7 @@ long previousTime;
 long blackOutActivatedTime;
 //Stores the time that the battery was last increased, so we can fade up from this time upwards
 long batteryIncreasedTime;
+long showBatteryActivatedTime;
 int interval = 5;
 
 //Mode and previous mode
@@ -48,11 +48,14 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 0;
+int batteryPercentage = 50;
+int timeNeededForStartingUpChargingCircle;
+int amoutOfLEDsToTurnOn;
 
 //Configuration
 int chargingCircleSnakeLength = 55;
 int blackOutTime = 1000;
+int timePerChargingLED = 100;
 
 void setup()
 {
@@ -85,9 +88,6 @@ void loop()
   if (previousButtonState == NOT_PRESSED && currentButtonState == PRESSED)
   {
     setCurrentMode(STARTING_UP);
-    startUpSeqLedCounter = 0;
-    clearAllLeds();
-    FastLED.setBrightness(brightness);
   }
   //Button changes from pressed to not pressed
   if (previousButtonState == PRESSED && currentButtonState == NOT_PRESSED)
@@ -168,21 +168,42 @@ void timerRed()
       startUp = false;
     }
   }*/
-  if (random(0, 1000) > 990)
+
+  if (currentTime - timeNeededForStartingUpChargingCircle < showBatteryActivatedTime)
   {
-    batteryPercentage++;
-    batteryIncreasedTime = currentTime;
+    //Serial.println("charging startup");
+    float percentage = (currentTime - showBatteryActivatedTime) % timePerChargingLED / (float)timePerChargingLED;
+    float adjustedBrightness = percentage * brightness;
+    int currentLedToTurnOn = (currentTime - showBatteryActivatedTime) / timePerChargingLED - 1;
+    leds[currentLedToTurnOn] = CHSV(0 - map(currentLedToTurnOn, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
+  }
+  else
+  {
+
+    if (random(0, 1000) > 994)
+    {
+      
+      int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
+      Serial.print("Battery percentage increased to ");
+      Serial.println(batteryPercentage);
+      batteryPercentage++;
+      int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
+      if (ledIndex != ledIndexAfter)
+      {
+        batteryIncreasedTime = currentTime;
+      }
+    }
+
+    int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
+    float timeDifference = (currentTime - batteryIncreasedTime);
+    float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
+
+    for(int i = 0; i<index; i++) {
+      leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
+    }
+    leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
   }
 
-  int chargingCircleLedIndex = (float)batteryPercentage / 100 * NUM_LEDS;
-
-  float timeDifference = (currentTime - batteryIncreasedTime);
-  float adjustedBrightness = timeDifference / interval * brightness;
-  for (int i = 0; i < chargingCircleLedIndex; i++)
-  {
-    leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
-  }
-  leds[chargingCircleLedIndex] = CHSV(0 - map(chargingCircleLedIndex, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
   FastLED.show();
 }
 
@@ -207,12 +228,38 @@ void setCurrentMode(ShowMode mode)
     switch (currentMode)
     {
     case NONE:
+    {
       clearAllLeds();
       break;
+    }
+    case STARTING_UP:
+    {
+      startUpSeqLedCounter = 0;
+      clearAllLeds();
+      FastLED.setBrightness(brightness);
+      break;
+    }
+    case SHOWING_BATTERY:
+    {
+      amoutOfLEDsToTurnOn = (float)batteryPercentage / 100 * NUM_LEDS + 1;
+      timeNeededForStartingUpChargingCircle = amoutOfLEDsToTurnOn * timePerChargingLED;
+      showBatteryActivatedTime = currentTime;
+
+      Serial.print("Battery percentage: ");
+      Serial.println(batteryPercentage);
+      Serial.print("Amount of leds to turn on: ");
+      Serial.println(amoutOfLEDsToTurnOn);
+      Serial.print("Time needed to turn these leds on: ");
+      Serial.println(timeNeededForStartingUpChargingCircle);
+      delay(100);
+      break;
+    }
     case BLACKING_OUT:
+    {
       blackOutActivatedTime = currentTime;
       startUpSeqLedCounter = 0;
       break;
+    }
     }
 
     Serial.print("Switched to mode: ");
