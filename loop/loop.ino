@@ -54,8 +54,8 @@ int amoutOfLEDsToTurnOn;
 
 //Configuration
 int chargingCircleSnakeLength = 10;
-int blackOutTime = 1000;
-int timePerChargingLED = 100;
+int blackOutTime = 400;
+int timePerChargingLED = 80;
 
 void setup()
 {
@@ -180,7 +180,7 @@ void timerRed()
   else
   {
 
-    if (random(0, 1000) > 994)
+    if (random(0, 10000) > 9980)
     {
       if (batteryPercentage != 100)
       {
