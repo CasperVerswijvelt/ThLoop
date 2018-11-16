@@ -48,7 +48,7 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 40;
+int batteryPercentage = 100;
 int timeNeededForStartingUpChargingCircle;
 int amoutOfLEDsToTurnOn;
 
@@ -180,9 +180,9 @@ void timerRed()
   else
   {
 
-    if (random(0, 10000) > 9980)
+    if (batteryPercentage != 100)
     {
-      if (batteryPercentage != 100)
+      if (random(0, 10000) > 9980)
       {
         int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
         batteryPercentage++;
@@ -194,17 +194,22 @@ void timerRed()
           batteryIncreasedTime = currentTime;
         }
       }
-    }
 
-    int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
-    float timeDifference = (currentTime - batteryIncreasedTime);
-    float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
+      int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
+      float timeDifference = (currentTime - batteryIncreasedTime);
+      float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
 
-    for (int i = 0; i < index; i++)
-    {
-      leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
+      for (int i = 0; i < index; i++)
+      {
+        leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
+      }
+      leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
+    } else {
+      for (int i = 0; i < NUM_LEDS; i++)
+      {
+        leds[i] = CHSV(85, 255, brightness);
+      }
     }
-    leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
   }
 
   FastLED.show();
