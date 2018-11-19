@@ -221,18 +221,9 @@ void timerRed()
   }
   else
   {
+    //We know all animations are done here, so  our currentBatteryIndicatorIndex should be the same as targetBatteryIndicatorIndex
     currentBatteryIndicatorIndex = targetBatteryIndicatorIndex;
     retrieveBatteryPercentage();
-
-    /*int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
-    float timeDifference = (currentTime - batteryChangedTime);
-    float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
-
-    for (int i = 0; i < index; i++)
-    {
-      leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
-    }
-    leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);*/
 
     //If battery is full, show green circle
     if (batteryPercentage == 100)
