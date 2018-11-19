@@ -53,7 +53,7 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 10;
+int batteryPercentage = 50;
 int timeNeededForChangingBatteryIndicator;
 int amountOfLEDsToChange;
 int currentBatteryIndicatorIndex = 0;
@@ -119,12 +119,12 @@ void loop()
   readButton();
 
   //If button changes from not pressed to pressed
-  if (previousButtonState == NOT_PRESSED && currentButtonState == PRESSED)
+  if (previousButtonState == NOT_PRESSED && currentButtonState == PRESSED && currentMode == NONE)
   {
     setCurrentMode(STARTING_UP);
   }
   //Button changes from pressed to not pressed
-  if (previousButtonState == PRESSED && currentButtonState == NOT_PRESSED)
+  if (previousButtonState == PRESSED && currentButtonState == NOT_PRESSED && currentMode != NONE)
   {
     setCurrentMode(BLACKING_OUT);
   }
@@ -200,13 +200,13 @@ void timerRed()
     if (targetBatteryIndicatorIndex > currentBatteryIndicatorIndex)
     {
       //Battery percentage increased
-
       float percentage = (currentTime - batteryChangedTime) % timePerChargingLED / (float)timePerChargingLED;
       float adjustedBrightness = percentage * brightness;
       int currentLedToTurnOn = (currentTime - batteryChangedTime) / timePerChargingLED + currentBatteryIndicatorIndex;
 
       //In case we have any delays, we turn on all previous LED's here, so none stay black
-      for(int i = 0; i< currentLedToTurnOn;i++) {
+      for (int i = 0; i < currentLedToTurnOn; i++)
+      {
         leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
       }
 
@@ -221,10 +221,6 @@ void timerRed()
   }
   else
   {
-    //We know all animations are done here, so  our currentBatteryIndicatorIndex should be the same as targetBatteryIndicatorIndex
-    currentBatteryIndicatorIndex = targetBatteryIndicatorIndex;
-    retrieveBatteryPercentage();
-
     //If battery is full, show green circle
     if (batteryPercentage == 100)
     {
@@ -233,6 +229,10 @@ void timerRed()
         leds[i] = CHSV(85, 255, brightness);
       }
     }
+
+    //We know all animations are done here, so  our currentBatteryIndicatorIndex should be the same as targetBatteryIndicatorIndex
+    currentBatteryIndicatorIndex = targetBatteryIndicatorIndex;
+    retrieveBatteryPercentage();
   }
 
   FastLED.show();
@@ -297,7 +297,7 @@ void retrieveBatteryPercentage()
   {
     int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
 
-    batteryPercentage+=5; //Instead: here  we should retrieve battery info from phone
+    batteryPercentage = min(100, batteryPercentage + 1); //Instead: here  we should retrieve battery info from phone
 
     /*Serial.print("Battery percentage increased to ");
         Serial.println(batteryPercentage);*/
@@ -305,7 +305,6 @@ void retrieveBatteryPercentage()
     int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
     if (ledIndex != ledIndexAfter)
     {
-
       targetBatteryIndicatorIndex = ledIndexAfter;
     }
   }
