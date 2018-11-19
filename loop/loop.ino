@@ -50,7 +50,7 @@ ShowMode previousMode;
 int startUpSeqLedCounter = 0;
 int batteryPercentage = 100;
 int timeNeededForStartingUpChargingCircle;
-int amoutOfLEDsToTurnOn;
+int amountOfLEDsToTurnOn;
 
 //Configuration
 int chargingCircleSnakeLength = 10;
