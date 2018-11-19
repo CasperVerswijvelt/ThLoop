@@ -44,8 +44,7 @@ long previousTime;
 //Stores the time when blackout was activated, so it can correctly fade over time
 long blackOutActivatedTime;
 //Stores the time that the battery was last increased, so we can fade up from this time upwards
-long batteryIncreasedTime;
-long showBatteryActivatedTime;
+long batteryChangedTime;
 int interval = 5;
 
 //Mode and previous mode
@@ -54,14 +53,19 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 100;
-int timeNeededForStartingUpChargingCircle;
-int amountOfLEDsToTurnOn;
+int batteryPercentage = 10;
+int timeNeededForChangingBatteryIndicator;
+int amountOfLEDsToChange;
+int currentBatteryIndicatorIndex = 0;
+int targetBatteryIndicatorIndex = 0;
 
 //Configuration
 int chargingCircleSnakeLength = 10;
 int blackOutTime = 400;
-int timePerChargingLED = 80;
+int timePerChargingLEDStartup = 80;
+int timePerChargingLEDNormal = 1000;
+int timePerChargingLED;                               //This variable will update according to the boolean underneath
+bool useStartUpTimePerLEDForChargingIndicator = true; //This wil automatically change to false after the first time
 
 void setup()
 {
@@ -96,7 +100,7 @@ void readButton()
 
     // if the button state has changed:
     buttonState = reading;
-    
+
     previousButtonState = currentButtonState;
     currentButtonState = buttonState;
   }
@@ -191,51 +195,47 @@ void blackOut()
 void timerRed()
 {
 
-  /*if (currentTime - previousTime > interval) {
-    timerDone = true;
-    previousTime = currentTime;
-    if (++chargingCircleLedIndex == NUM_LEDS - 1) {
-      startUp = false;
-    }
-  }*/
-
-  if (currentTime - timeNeededForStartingUpChargingCircle < showBatteryActivatedTime)
+  if (currentTime - timeNeededForChangingBatteryIndicator < batteryChangedTime)
   {
-    //Serial.println("charging startup");
-    float percentage = (currentTime - showBatteryActivatedTime) % timePerChargingLED / (float)timePerChargingLED;
-    float adjustedBrightness = percentage * brightness;
-    int currentLedToTurnOn = (currentTime - showBatteryActivatedTime) / timePerChargingLED;
-    leds[currentLedToTurnOn] = CHSV(0 - map(currentLedToTurnOn, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
+    if (targetBatteryIndicatorIndex > currentBatteryIndicatorIndex)
+    {
+      //Battery percentage increased
+
+      float percentage = (currentTime - batteryChangedTime) % timePerChargingLED / (float)timePerChargingLED;
+      float adjustedBrightness = percentage * brightness;
+      int currentLedToTurnOn = (currentTime - batteryChangedTime) / timePerChargingLED + currentBatteryIndicatorIndex;
+
+      //In case we have any delays, we turn on all previous LED's here, so none stay black
+      for(int i = 0; i< currentLedToTurnOn;i++) {
+        leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
+      }
+
+      leds[currentLedToTurnOn] = CHSV(0 - map(currentLedToTurnOn, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
+    }
+    else if (targetBatteryIndicatorIndex < currentBatteryIndicatorIndex)
+    {
+      //Battery percentage decreased
+
+      //TODO: If battery has decreased we should fade OUT led's until the indicator is correct again
+    }
   }
   else
   {
+    currentBatteryIndicatorIndex = targetBatteryIndicatorIndex;
+    retrieveBatteryPercentage();
 
-    if (batteryPercentage != 100)
+    /*int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
+    float timeDifference = (currentTime - batteryChangedTime);
+    float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
+
+    for (int i = 0; i < index; i++)
     {
-      if (random(0, 10000) > 9980)
-      {
-        int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
-        batteryPercentage++;
-        /*Serial.print("Battery percentage increased to ");
-        Serial.println(batteryPercentage);*/
-        int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
-        if (ledIndex != ledIndexAfter)
-        {
-          batteryIncreasedTime = currentTime;
-        }
-      }
-
-      int index = (float)batteryPercentage / 100.0 * NUM_LEDS;
-      float timeDifference = (currentTime - batteryIncreasedTime);
-      float adjustedBrightness = min(timeDifference / 500 * brightness, 200);
-
-      for (int i = 0; i < index; i++)
-      {
-        leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
-      }
-      leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
+      leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
     }
-    else
+    leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);*/
+
+    //If battery is full, show green circle
+    if (batteryPercentage == 100)
     {
       for (int i = 0; i < NUM_LEDS; i++)
       {
@@ -269,6 +269,8 @@ void setCurrentMode(ShowMode mode)
     {
     case NONE:
     {
+      currentBatteryIndicatorIndex = 0;
+      useStartUpTimePerLEDForChargingIndicator = true;
       clearAllLeds();
       break;
     }
@@ -281,18 +283,7 @@ void setCurrentMode(ShowMode mode)
     }
     case SHOWING_BATTERY:
     {
-      amountOfLEDsToTurnOn = (float)batteryPercentage / 100 * NUM_LEDS + 1;
-      timeNeededForStartingUpChargingCircle = amountOfLEDsToTurnOn * timePerChargingLED;
-      showBatteryActivatedTime = currentTime;
-      /*Serial.println("--- Showing battery startup information ---");
-      Serial.print("Battery percentage: ");
-      Serial.println(batteryPercentage);
-      Serial.print("Amount of leds to turn on: ");
-      Serial.println(amoutOfLEDsToTurnOn);
-      Serial.print("Time needed to turn these leds on: ");
-      Serial.println(timeNeededForStartingUpChargingCircle);
-      Serial.println("-------------------------------------------");
-      delay(100);*/
+      retrieveBatteryPercentage();
       break;
     }
     case BLACKING_OUT:
@@ -305,5 +296,59 @@ void setCurrentMode(ShowMode mode)
 
     Serial.print("Switched to mode: ");
     Serial.println(showModeStrings[currentMode]);
+  }
+}
+
+void retrieveBatteryPercentage()
+{
+  //Check for battery, here it is random because we don't have information about the battery yet
+  if (random(0, 10000) > 9950)
+  {
+    int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
+
+    batteryPercentage+=5; //Instead: here  we should retrieve battery info from phone
+
+    /*Serial.print("Battery percentage increased to ");
+        Serial.println(batteryPercentage);*/
+
+    int ledIndexAfter = (float)(batteryPercentage) / 100 * NUM_LEDS;
+    if (ledIndex != ledIndexAfter)
+    {
+
+      targetBatteryIndicatorIndex = ledIndexAfter;
+    }
+  }
+
+  if (currentBatteryIndicatorIndex != targetBatteryIndicatorIndex)
+  {
+    amountOfLEDsToChange = abs(currentBatteryIndicatorIndex - targetBatteryIndicatorIndex);
+
+    if (useStartUpTimePerLEDForChargingIndicator)
+    {
+      timePerChargingLED = timePerChargingLEDStartup;
+      useStartUpTimePerLEDForChargingIndicator = false;
+    }
+    else
+    {
+      timePerChargingLED = timePerChargingLEDNormal;
+    }
+
+    timeNeededForChangingBatteryIndicator = amountOfLEDsToChange * timePerChargingLED;
+    batteryChangedTime = currentTime;
+
+    //DEBUGGING PRINTS
+    /*Serial.println("--- Showing battery startup information ---");
+    Serial.print("Battery percentage: ");
+    Serial.println(batteryPercentage);
+    Serial.print("Amount of leds to turn on: ");
+    Serial.println(amountOfLEDsToChange+1);
+    Serial.print("Time needed to turn these leds on ");
+    if (useStartUpTimePerLEDForChargingIndicator)
+    {
+      Serial.print("(startup time per led was used)");
+    }
+    Serial.print(":");
+    Serial.println(timeNeededForChangingBatteryIndicator);
+    Serial.println("-------------------------------------------");*/
   }
 }
