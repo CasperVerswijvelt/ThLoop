@@ -28,6 +28,12 @@ int buttonPin = 2;
 int currentButtonState;  // the current reading from the input pin
 int previousButtonState; // the previous reading from the input pin
 
+//Debounce
+int buttonState;
+int lastButtonState;
+int debounceDelay = 50;
+long lastDebounceTime;
+
 //LED information
 const int ledPin = 13;
 
@@ -71,8 +77,32 @@ void setup()
 void readButton()
 {
   int reading = digitalRead(buttonPin);
-  previousButtonState = currentButtonState;
-  currentButtonState = reading;
+
+  // check to see if you just pressed the button
+  // (i.e. the input went from LOW to HIGH), and you've waited long enough
+  // since the last press to ignore any noise:
+
+  // If the switch changed, due to noise or pressing:
+  if (reading != lastButtonState)
+  {
+    // reset the debouncing timer
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay)
+  {
+    // whatever the reading is at, it's been there for longer than the debounce
+    // delay, so take it as the actual current state:
+
+    // if the button state has changed:
+    buttonState = reading;
+    
+    previousButtonState = currentButtonState;
+    currentButtonState = buttonState;
+  }
+
+  // save the reading. Next time through the loop, it'll be the lastButtonState:
+  lastButtonState = reading;
 }
 
 void readTime()
@@ -204,7 +234,9 @@ void timerRed()
         leds[i] = CHSV(0 - map(i, 0, NUM_LEDS, 0, 180), 255, brightness);
       }
       leds[index] = CHSV(0 - map(index, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
-    } else {
+    }
+    else
+    {
       for (int i = 0; i < NUM_LEDS; i++)
       {
         leds[i] = CHSV(85, 255, brightness);
@@ -249,8 +281,8 @@ void setCurrentMode(ShowMode mode)
     }
     case SHOWING_BATTERY:
     {
-      amoutOfLEDsToTurnOn = (float)batteryPercentage / 100 * NUM_LEDS + 1;
-      timeNeededForStartingUpChargingCircle = amoutOfLEDsToTurnOn * timePerChargingLED;
+      amountOfLEDsToTurnOn = (float)batteryPercentage / 100 * NUM_LEDS + 1;
+      timeNeededForStartingUpChargingCircle = amountOfLEDsToTurnOn * timePerChargingLED;
       showBatteryActivatedTime = currentTime;
       /*Serial.println("--- Showing battery startup information ---");
       Serial.print("Battery percentage: ");
