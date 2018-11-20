@@ -216,7 +216,17 @@ void timerRed()
     {
       //Battery percentage decreased
 
-      //TODO: If battery has decreased we should fade OUT led's until the indicator is correct again
+      float percentage = 1- ((currentTime - batteryChangedTime) % timePerChargingLED / (float)timePerChargingLED);
+      float adjustedBrightness = percentage * brightness;
+      int currentLedToTurnOff = (currentTime - batteryChangedTime) / timePerChargingLED + currentBatteryIndicatorIndex - 1;
+
+      //In case we have any delays, we turn off all following LED's here, so all are black
+      for (int i = NUM_LEDS -1 ; i > currentLedToTurnOff; i--)
+      {
+        leds[i] = CHSV(0 , 0, 0);
+      }
+
+      leds[currentLedToTurnOff] = CHSV(0 - map(currentLedToTurnOff, 0, NUM_LEDS, 0, 180), 255, adjustedBrightness);
     }
   }
   else
@@ -297,7 +307,7 @@ void retrieveBatteryPercentage()
   {
     int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
 
-    batteryPercentage = min(100, batteryPercentage + 1); //Instead: here  we should retrieve battery info from phone
+    batteryPercentage = min(100, batteryPercentage + random(-1,3)); //Instead: here  we should retrieve battery info from phone
 
     /*Serial.print("Battery percentage increased to ");
         Serial.println(batteryPercentage);*/
