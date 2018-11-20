@@ -2,7 +2,7 @@
 #include <FastLED.h>
 #define LED_PIN 5
 #define NUM_LEDS 55
-int brightness = 200;
+
 
 CRGB leds[NUM_LEDS];
 //CHSV ledsHSV[NUM_LEDS];
@@ -45,7 +45,6 @@ long previousTime;
 long blackOutActivatedTime;
 //Stores the time that the battery was last increased, so we can fade up from this time upwards
 long batteryChangedTime;
-int interval = 5;
 
 //Mode and previous mode
 ShowMode currentMode = NONE;
@@ -59,13 +58,18 @@ int amountOfLEDsToChange;
 int currentBatteryIndicatorIndex = 0;
 int targetBatteryIndicatorIndex = 0;
 
+int timePerChargingLED;                               //This variable will update according to the boolean underneath
+bool useStartUpTimePerLEDForChargingIndicator = true; //This wil automatically change to false after the first time
+
 //Configuration
+int brightness = 200;
 int chargingCircleSnakeLength = 10;
 int blackOutTime = 400;
 int timePerChargingLEDStartup = 80;
 int timePerChargingLEDNormal = 1000;
-int timePerChargingLED;                               //This variable will update according to the boolean underneath
-bool useStartUpTimePerLEDForChargingIndicator = true; //This wil automatically change to false after the first time
+int startUpSeqTimePerLED = 50;
+
+
 
 void setup()
 {
@@ -141,7 +145,6 @@ void loop()
     startUpSeq();
     break;
   case SHOWING_BATTERY:
-    interval = 1000;
     timerRed();
     break;
   }
@@ -156,18 +159,34 @@ void startUpSeq()
     return;
   }
 
+
+  int adjustedBrightness = (currentTime - previousTime)/(float)startUpSeqTimePerLED*brightness;
+  //Head of the snake, turn it on, fading
   if (startUpSeqLedCounter < NUM_LEDS)
   {
-    leds[startUpSeqLedCounter] = CHSV(200, 0, brightness);
+    leds[startUpSeqLedCounter] = CHSV(200, 0, adjustedBrightness);
   }
 
+  //To make sure all led's in the middle of the 
+  int from = max(0,startUpSeqLedCounter - chargingCircleSnakeLength + 1);
+  int to = min(startUpSeqLedCounter -1,NUM_LEDS-1);
+  /*Serial.print("From: ");
+  Serial.print(from);
+  Serial.print(", to: ");
+  Serial.println(to);*/
+  for(int i = from; i<=to; i++) {
+    leds[i] = CHSV(200,0,brightness);
+  }
+  
+
+  //Tail of the snake, turn off the led's
   if (startUpSeqLedCounter >= chargingCircleSnakeLength)
   {
     int turnOffLedIndex = startUpSeqLedCounter - chargingCircleSnakeLength;
-    leds[turnOffLedIndex] = CHSV(0, 0, 0);
+    leds[turnOffLedIndex] = CHSV(0, 0, min(max(0,brightness-adjustedBrightness),200));
   }
 
-  if (currentTime - previousTime > 30)
+  if (currentTime - previousTime > startUpSeqTimePerLED)
   {
     previousTime = currentTime;
     startUpSeqLedCounter++;
@@ -303,11 +322,11 @@ void setCurrentMode(ShowMode mode)
 void retrieveBatteryPercentage()
 {
   //Check for battery, here it is random because we don't have information about the battery yet
-  if (random(0, 10000) > 9950)
+  if (random(0, 10000) > 9960)
   {
     int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
 
-    batteryPercentage = min(100, batteryPercentage + random(-1,3)); //Instead: here  we should retrieve battery info from phone
+    batteryPercentage = min(100, batteryPercentage + random(1,2)); //Instead: here  we should retrieve battery info from phone
 
     /*Serial.print("Battery percentage increased to ");
         Serial.println(batteryPercentage);*/
