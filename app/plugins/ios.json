@@ -1,0 +1,24 @@
+{
+  "prepare_queue": {
+    "installed": [],
+    "uninstalled": []
+  },
+  "config_munge": {
+    "files": {}
+  },
+  "installed_plugins": {
+    "cordova-plugin-whitelist": {
+      "PACKAGE_NAME": "com.mlm.theloop"
+    },
+    "cordova-plugin-nativestorage": {
+      "PACKAGE_NAME": "com.mlm.theloop"
+    },
+    "cordova-plugin-battery-status": {
+      "PACKAGE_NAME": "com.mlm.theloop"
+    },
+    "cordova-plugin-mqtt": {
+      "PACKAGE_NAME": "com.mlm.theloop"
+    }
+  },
+  "dependent_plugins": {}
+}
