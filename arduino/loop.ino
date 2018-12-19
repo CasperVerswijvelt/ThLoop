@@ -1,4 +1,5 @@
 //led requirements
+#include <math.h>
 #include <FastLED.h>
 #define LED_PIN 5
 #define NUM_LEDS 55
@@ -13,9 +14,11 @@ enum ShowMode
   NONE,
   STARTING_UP,
   BLACKING_OUT,
-  SHOWING_BATTERY
+  SHOWING_BATTERY,
+  BATTERY_FULL,
+  AMBIENT_LIGHT
 };
-const String showModeStrings[] = {"NONE", "STARTING_UP", "BLACKING_OUT", "SHOWING_BATTERY"};
+const String showModeStrings[] = {"NONE", "STARTING_UP", "BLACKING_OUT", "SHOWING_BATTERY", "BATTERY_FULL" , "AMBIENT_LIGHT"};
 
 enum currentButtonState
 {
@@ -45,6 +48,8 @@ long previousTime;
 long blackOutActivatedTime;
 //Stores the time that the battery was last increased, so we can fade up from this time upwards
 long batteryChangedTime;
+//Stores the time that battery is fully charged, so after an interval it shows an ambient light
+long batteryFullTime;
 
 //Mode and previous mode
 ShowMode currentMode = NONE;
@@ -52,7 +57,7 @@ ShowMode previousMode;
 
 //To keep track at how far the animations have progressed
 int startUpSeqLedCounter = 0;
-int batteryPercentage = 50;
+int batteryPercentage = 85;
 int timeNeededForChangingBatteryIndicator;
 int amountOfLEDsToChange;
 int currentBatteryIndicatorIndex = 0;
@@ -68,7 +73,11 @@ int blackOutTime = 400;
 int timePerChargingLEDStartup = 80;
 int timePerChargingLEDNormal = 1000;
 int startUpSeqTimePerLED = 50;
+int timeToWaitBeforeAmbientLight = 30000;
 
+//Color configuration: See this link to see how to set the color values: https://github.com/FastLED/FastLED/wiki/Pixel-reference#chsv 
+CHSV ambientColor = CHSV(HUE_YELLOW,255,brightness);
+CHSV batteryFullColor = CHSV(85,255,brightness);
 
 
 void setup()
@@ -136,17 +145,23 @@ void loop()
   //This switch case gets executed every _ miliseconds, put code here that continuously has to run according to the currentMode
   switch (currentMode)
   {
-  case NONE:
-    break;
-  case BLACKING_OUT:
-    blackOut();
-    break;
-  case STARTING_UP:
-    startUpSeq();
-    break;
-  case SHOWING_BATTERY:
-    timerRed();
-    break;
+    case NONE:
+      break;
+    case BLACKING_OUT:
+      blackOut();
+      break;
+    case STARTING_UP:
+      startUpSeq();
+      break;
+    case SHOWING_BATTERY:
+      timerRed();
+      break;
+    case BATTERY_FULL:
+      batteryFull();
+      break;
+    case AMBIENT_LIGHT:
+      ambientLight();
+      break;
   }
 }
 
@@ -160,31 +175,30 @@ void startUpSeq()
   }
 
 
-  int adjustedBrightness = (currentTime - previousTime)/(float)startUpSeqTimePerLED*brightness;
+  int adjustedBrightness = (currentTime - previousTime) / (float)startUpSeqTimePerLED * brightness;
   //Head of the snake, turn it on, fading
   if (startUpSeqLedCounter < NUM_LEDS)
   {
     leds[startUpSeqLedCounter] = CHSV(200, 0, adjustedBrightness);
-    
   }
 
-  //To make sure all led's in the middle of the 
-  int from = max(0,startUpSeqLedCounter - chargingCircleSnakeLength + 1);
-  int to = min(startUpSeqLedCounter -1,NUM_LEDS-1);
+  //To make sure all led's in the middle of the
+  int from = max(0, startUpSeqLedCounter - chargingCircleSnakeLength + 1);
+  int to = min(startUpSeqLedCounter - 1, NUM_LEDS - 1);
   /*Serial.print("From: ");
-  Serial.print(from);
-  Serial.print(", to: ");
-  Serial.println(to);*/
-  for(int i = from; i<=to; i++) {
-    leds[i] = CHSV(200,0,brightness);
+    Serial.print(from);
+    Serial.print(", to: ");
+    Serial.println(to);*/
+  for (int i = from; i <= to; i++) {
+    leds[i] = CHSV(200, 0, brightness);
   }
-  
+
 
   //Tail of the snake, turn off the led's
   if (startUpSeqLedCounter >= chargingCircleSnakeLength)
   {
     int turnOffLedIndex = startUpSeqLedCounter - chargingCircleSnakeLength;
-    leds[turnOffLedIndex] = CHSV(0, 0, min(max(0,brightness-adjustedBrightness),200));
+    leds[turnOffLedIndex] = CHSV(0, 0, min(max(0, brightness - adjustedBrightness), 200));
   }
 
   if (currentTime - previousTime > startUpSeqTimePerLED)
@@ -236,12 +250,12 @@ void timerRed()
     {
       //Battery percentage decreased
 
-      float percentage = 1- ((currentTime - batteryChangedTime) % timePerChargingLED / (float)timePerChargingLED);
+      float percentage = 1 - ((currentTime - batteryChangedTime) % timePerChargingLED / (float)timePerChargingLED);
       float adjustedBrightness = percentage * brightness;
       int currentLedToTurnOff = (currentTime - batteryChangedTime) / timePerChargingLED + currentBatteryIndicatorIndex - 1;
 
       //In case we have any delays, we turn off all following LED's here, so all are black
-      for (int i = NUM_LEDS -1 ; i > currentLedToTurnOff; i--)
+      for (int i = NUM_LEDS - 1 ; i > currentLedToTurnOff; i--)
       {
         leds[i] = CHSV(0 , 0, 0);
       }
@@ -252,12 +266,10 @@ void timerRed()
   else
   {
     //If battery is full, show green circle
+
     if (batteryPercentage == 100)
     {
-      for (int i = 0; i < NUM_LEDS; i++)
-      {
-        leds[i] = CHSV(85, 255, brightness);
-      }
+      setCurrentMode(BATTERY_FULL);
     }
 
     //We know all animations are done here, so  our currentBatteryIndicatorIndex should be the same as targetBatteryIndicatorIndex
@@ -266,6 +278,26 @@ void timerRed()
   }
 
   FastLED.show();
+}
+
+void batteryFull() {
+  for (int i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = batteryFullColor;
+  }
+  FastLED.show();
+
+
+  if (batteryFullTime + timeToWaitBeforeAmbientLight < currentTime) {
+    setCurrentMode(AMBIENT_LIGHT);
+  }
+}
+
+void ambientLight() {
+  for (int i = 0; i < NUM_LEDS; i++)
+  {
+    leds[i] = ambientColor;
+  }
 }
 
 void clearAllLeds()
@@ -284,39 +316,75 @@ void setCurrentMode(ShowMode mode)
     previousMode = currentMode;
     currentMode = mode;
 
+    Serial.print("Switched to mode: ");
+    Serial.println(showModeStrings[currentMode]);
+
     //This switch case only gets executed when the mode CHANGES, to do thigs continuously according to a
     //specific mode, do it in the switch case in the 'loop' method
     switch (currentMode)
     {
-    case NONE:
-    {
-      currentBatteryIndicatorIndex = 0;
-      useStartUpTimePerLEDForChargingIndicator = true;
-      clearAllLeds();
-      break;
+      case NONE:
+        {
+          currentBatteryIndicatorIndex = 0;
+          useStartUpTimePerLEDForChargingIndicator = true;
+          clearAllLeds();
+          break;
+        }
+      case STARTING_UP:
+        {
+          startUpSeqLedCounter = 0;
+          clearAllLeds();
+          FastLED.setBrightness(brightness);
+          break;
+        }
+      case SHOWING_BATTERY:
+        {
+          retrieveBatteryPercentage();
+          break;
+        }
+      case BLACKING_OUT:
+        {
+          blackOutActivatedTime = currentTime;
+          startUpSeqLedCounter = 0;
+          break;
+        }
+      case BATTERY_FULL:
+        {
+          fadeToColor(256,CHSV( 85, 255, brightness));
+          batteryFullTime = currentTime;
+          break;
+        }
+      case AMBIENT_LIGHT:
+        {
+          fadeToColor(256,ambientColor);
+          break;
+        }
     }
-    case STARTING_UP:
-    {
-      startUpSeqLedCounter = 0;
-      clearAllLeds();
-      FastLED.setBrightness(brightness);
-      break;
-    }
-    case SHOWING_BATTERY:
-    {
-      retrieveBatteryPercentage();
-      break;
-    }
-    case BLACKING_OUT:
-    {
-      blackOutActivatedTime = currentTime;
-      startUpSeqLedCounter = 0;
-      break;
-    }
-    }
+  }
+}
 
-    Serial.print("Switched to mode: ");
-    Serial.println(showModeStrings[currentMode]);
+void fadeToColor(int total, CHSV targetHsv) {
+  CRGB targetRGB;
+  hsv2rgb_rainbow( targetHsv, targetRGB);
+  CRGB leds_copy[NUM_LEDS];
+
+  for(int i=0;i<NUM_LEDS;i++) {
+    leds_copy[i] = leds[i];
+  }
+
+  for ( int colorStep = 0; colorStep < total; colorStep++ ) {
+    // Now loop though each of the LEDs and set each one to the current color
+    for (int x = 0; x < NUM_LEDS; x++) {
+
+      int r = leds_copy[x].red + (targetRGB.red - leds_copy[x].red) * colorStep / total;
+      int g = leds_copy[x].green + (targetRGB.green - leds_copy[x].green) * colorStep / total;
+      int b = leds_copy[x].blue + (targetRGB.blue - leds_copy[x].blue) * colorStep / total;
+      
+      leds[x] = CRGB(r, g, b);
+    }
+    // Display the colors we just set on the actual LEDs
+    FastLED.show();
+    delay(10);
   }
 }
 
@@ -327,7 +395,7 @@ void retrieveBatteryPercentage()
   {
     int ledIndex = (float)batteryPercentage / 100 * NUM_LEDS;
 
-    batteryPercentage = min(100, batteryPercentage + random(1,2)); //Instead: here  we should retrieve battery info from phone
+    batteryPercentage = min((long int)100, batteryPercentage + random(1, 2)); //Instead: here  we should retrieve battery info from phone
 
     /*Serial.print("Battery percentage increased to ");
         Serial.println(batteryPercentage);*/
@@ -358,17 +426,17 @@ void retrieveBatteryPercentage()
 
     //DEBUGGING PRINTS
     /*Serial.println("--- Showing battery startup information ---");
-    Serial.print("Battery percentage: ");
-    Serial.println(batteryPercentage);
-    Serial.print("Amount of leds to turn on: ");
-    Serial.println(amountOfLEDsToChange+1);
-    Serial.print("Time needed to turn these leds on ");
-    if (useStartUpTimePerLEDForChargingIndicator)
-    {
+      Serial.print("Battery percentage: ");
+      Serial.println(batteryPercentage);
+      Serial.print("Amount of leds to turn on: ");
+      Serial.println(amountOfLEDsToChange+1);
+      Serial.print("Time needed to turn these leds on ");
+      if (useStartUpTimePerLEDForChargingIndicator)
+      {
       Serial.print("(startup time per led was used)");
-    }
-    Serial.print(":");
-    Serial.println(timeNeededForChangingBatteryIndicator);
-    Serial.println("-------------------------------------------");*/
+      }
+      Serial.print(":");
+      Serial.println(timeNeededForChangingBatteryIndicator);
+      Serial.println("-------------------------------------------");*/
   }
 }
